@@ -422,21 +422,8 @@ class FilterQueryInput extends AbstractInput
                     break;
             }
 
-            if (null !== $this->lexer->lookahead) {
-                if ($this->lexer->isNextToken(Lexer::T_COMMA)) {
-                    $this->match(Lexer::T_COMMA);
-                } elseif ($this->lexer->isNextToken(Lexer::T_SEMICOLON)) {
-                    $this->match(Lexer::T_SEMICOLON);
-
-                    // values list has ended.
-                    break;
-                } elseif ($this->lexer->isNextToken(Lexer::T_CLOSE_PARENTHESIS)) {
-                    // Semicolon is optional when last
-                    // values list has ended.
-                    break;
-                } else {
-                    $this->syntaxError('; | , | )', $this->lexer->lookahead);
-                }
+            if (null !== $this->lexer->lookahead && $this->commaOrGroupEnd()) {
+                break;
             }
         }
 
@@ -445,6 +432,36 @@ class FilterQueryInput extends AbstractInput
         }
 
         return $valuesBag;
+    }
+
+    private function commaOrGroupEnd()
+    {
+        if ($this->lexer->isNextToken(Lexer::T_COMMA)) {
+            $this->match(Lexer::T_COMMA);
+
+            return false;
+        }
+
+        if ($this->lexer->isNextToken(Lexer::T_SEMICOLON)) {
+            $this->match(Lexer::T_SEMICOLON);
+
+            // values list has ended.
+            return true;
+        }
+
+        if ($this->lexer->isNextToken(Lexer::T_CLOSE_PARENTHESIS)) {
+            // Semicolon is optional when last
+            // values list has ended.
+            return true;
+        }
+
+        if ($this->lexer->isNextToken(Lexer::T_CLOSE_PARENTHESIS)) {
+            // Semicolon is optional when last
+            // values list has ended.
+            return true;
+        }
+
+        $this->syntaxError('; | , | )', $this->lexer->lookahead);
     }
 
     /**
@@ -545,57 +562,34 @@ class FilterQueryInput extends AbstractInput
         // look for case insensitive
         if ($this->lexer->isNextToken(Lexer::T_STRING) && 'i' === strtolower($this->lexer->lookahead['value'])) {
             $caseInsensitive = true;
-
             $this->match(Lexer::T_STRING);
         }
 
+        return $this->getPatternMatchOperator();
+    }
+
+    private function getPatternMatchOperator()
+    {
         switch ($this->lexer->lookahead['value']) {
             case '*':
                 $this->match(Lexer::T_MULTIPLY);
-                $operator = 'CONTAINS';
-
-                return $operator;
+                return 'CONTAINS';
 
             case '>':
                 $this->match(Lexer::T_GREATER_THAN);
-                $operator = 'STARTS_WITH';
-
-                return $operator;
+                return 'STARTS_WITH';
 
             case '<':
                 $this->match(Lexer::T_LOWER_THAN);
-                $operator = 'ENDS_WITH';
-
-                return $operator;
+                return 'ENDS_WITH';
 
             case '?':
                 $this->match(Lexer::T_QUESTION_MARK);
-                $operator = 'REGEX';
-
-                return $operator;
+                return 'REGEX';
 
             case '!':
                 $this->match(Lexer::T_NEGATE);
-
-                $operator = 'NOT_';
-
-                if ($this->lexer->isNextToken(Lexer::T_MULTIPLY)) {
-                    $this->match(Lexer::T_MULTIPLY);
-                    $operator .= 'CONTAINS';
-                } elseif ($this->lexer->isNextToken(Lexer::T_GREATER_THAN)) {
-                    $this->match(Lexer::T_GREATER_THAN);
-                    $operator .= 'STARTS_WITH';
-                } elseif ($this->lexer->isNextToken(Lexer::T_LOWER_THAN)) {
-                    $this->match(Lexer::T_LOWER_THAN);
-                    $operator .= 'ENDS_WITH';
-                } elseif ($this->lexer->isNextToken(Lexer::T_QUESTION_MARK)) {
-                    $this->match(Lexer::T_QUESTION_MARK);
-                    $operator .= 'REGEX';
-                } else {
-                    $this->syntaxError('*, >, <, ?');
-                }
-
-                return $operator;
+                return 'NOT_'.$this->getPatternMatchOperator();
 
             default:
                 $this->syntaxError('*, >, <, ?, !*, !>, !<, !?');
