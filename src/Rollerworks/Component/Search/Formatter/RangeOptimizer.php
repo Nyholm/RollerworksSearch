@@ -31,7 +31,7 @@ use Rollerworks\Component\Search\ValuesGroup;
 class RangeOptimizer implements FormatterInterface
 {
     /**
-     * {@inheritDoc}
+     * {@inheritdoc}
      */
     public function format(SearchConditionInterface $condition)
     {
@@ -91,88 +91,77 @@ class RangeOptimizer implements FormatterInterface
             $singleValues = $valuesBag->getSingleValues();
             $ranges = $valuesBag->getRanges();
 
-            foreach ($ranges as $i => $range) {
-                if (!isset($ranges[$i])) {
-                    continue;
-                }
-
-                foreach ($singleValues as $c => $value) {
-                    if ($this->isValInRange($value, $range, $comparison, $options)) {
-                        $valuesBag->removeSingleValue($c);
-                    }
-                }
-
-                foreach ($ranges as $c => $value) {
-                    if ($i === $c) {
-                        continue;
-                    }
-
-                    if ($this->isRangeInRange($value, $range, $comparison, $options)) {
-                        $valuesBag->removeRange($c);
-                        unset($ranges[$c]);
-
-                        continue;
-                    }
-
-                    // check if the range is connected
-                    // connected is when the upper-bound is equal to the lower-bound of the second range
-                    // only when the bounds inclusiveness are equal they can be optimized
-
-                    if ($range->isLowerInclusive() === $value->isLowerInclusive() && $range->isUpperInclusive() === $value->isUpperInclusive() && $comparison->isEqual($range->getUpper(), $value->getLower(), $options)) {
-                        $range->setUpper($value->getUpper());
-
-                        // remove the second range as its merged now
-                        $valuesBag->removeRange($c);
-                        unset($ranges[$c]);
-                    }
-                }
-            }
-
-            unset($singleValues);
+            $this->optimizeRanges($ranges, $singleValues, $valuesBag, $comparison, $options);
+            unset($singleValues, $ranges);
         }
 
         if ($valuesBag->hasExcludedRanges()) {
             $excludedValues = $valuesBag->getExcludedValues();
             $excludedRanges = $valuesBag->getExcludedRanges();
 
-            foreach ($excludedRanges as $i => $range) {
-                if (!isset($excludedRanges[$i])) {
-                    continue;
-                }
+            $this->optimizeRanges($excludedRanges, $excludedValues, $valuesBag, $comparison, $options, true);
+            unset($excludedValues, $excludedRanges);
+        }
+    }
 
-                foreach ($excludedValues as $c => $value) {
-                    if ($this->isValInRange($value, $range, $comparison, $options)) {
+    /**
+     * @param Range[]                  $ranges
+     * @param SingleValue[]            $singleValues
+     * @param ValuesBag                $valuesBag
+     * @param ValueComparisonInterface $comparison
+     * @param array                    $options
+     * @param boolean                  $exclusive
+     */
+    private function optimizeRanges(array $ranges, array $singleValues, ValuesBag $valuesBag, ValueComparisonInterface $comparison, $options, $exclusive = false)
+    {
+        foreach ($ranges as $i => $range) {
+            if (!isset($ranges[$i])) {
+                continue;
+            }
+
+            foreach ($singleValues as $c => $value) {
+                if ($this->isValInRange($value, $range, $comparison, $options)) {
+                    if ($exclusive) {
                         $valuesBag->removeExcludedValue($c);
-                    }
-                }
-
-                foreach ($excludedRanges as $c => $value) {
-                    if ($i === $c) {
-                        continue;
-                    }
-
-                    if ($this->isRangeInRange($value, $range, $comparison, $options)) {
-                        $valuesBag->removeExcludedRange($c);
-                        unset($excludedRanges[$c]);
-
-                        continue;
-                    }
-
-                    // check if the range is connected
-                    // connected is when the upper-bound is equal to the lower-bound of the second range
-                    // only when the bounds inclusiveness are equal they can be optimized
-
-                    if ($range->isLowerInclusive() === $value->isLowerInclusive() && $range->isUpperInclusive() === $value->isUpperInclusive() && $comparison->isEqual($range->getUpper(), $value->getLower(), $options)) {
-                        $range->setUpper($value->getUpper());
-
-                        // remove the second range as its merged now
-                        $valuesBag->removeExcludedRange($c);
-                        unset($excludedRanges[$c]);
+                    } else {
+                        $valuesBag->removeSingleValue($c);
                     }
                 }
             }
 
-            unset($singleValues);
+            foreach ($ranges as $c => $value) {
+                if ($i === $c) {
+                    continue;
+                }
+
+                if ($this->isRangeInRange($value, $range, $comparison, $options)) {
+                    if ($exclusive) {
+                        $valuesBag->removeExcludedRange($c);
+                    } else {
+                        $valuesBag->removeRange($c);
+                    }
+                    unset($ranges[$c]);
+
+                    continue;
+                }
+
+                // check if the range is connected
+                // connected is when the upper-bound is equal to the lower-bound of the second range
+                // only when the bounds inclusiveness are equal they can be optimized
+
+                if ($range->isLowerInclusive() === $value->isLowerInclusive() && $range->isUpperInclusive() === $value->isUpperInclusive() && $comparison->isEqual($range->getUpper(), $value->getLower(), $options)) {
+                    $range->setUpper($value->getUpper());
+
+                    // remove the second range as its merged now
+                    if ($exclusive) {
+                        $valuesBag->removeExcludedRange($c);
+                    } else {
+                        $valuesBag->removeRange($c);
+                    }
+
+                    unset($ranges[$c]);
+                }
+            }
         }
     }
 
