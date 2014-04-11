@@ -27,21 +27,28 @@ class DqlQueryGenerator extends QueryGenerator
         // Doctrine at the moment does not support case insensitive LIKE or regex match
         // So we use a custom function for this
 
-        $pattern = array(
-            PatternMatch::PATTERN_STARTS_WITH => "RW_SEARCH_MATCH(%s, %s, 'starts_with', ".($patternMatch->isCaseInsensitive() ? 'true' : 'false') .") = 1",
-            PatternMatch::PATTERN_NOT_STARTS_WITH => "RW_SEARCH_MATCH(%s, %s', 'starts_with', ".($patternMatch->isCaseInsensitive() ? 'true' : 'false') .") <> 1",
+        $patternType = array(
+            PatternMatch::PATTERN_STARTS_WITH => 'starts_with',
+            PatternMatch::PATTERN_NOT_STARTS_WITH => 'starts_with',
 
-            PatternMatch::PATTERN_CONTAINS => "RW_SEARCH_MATCH(%s, %s, 'contains', ".($patternMatch->isCaseInsensitive() ? 'true' : 'false') .") = 1",
-            PatternMatch::PATTERN_NOT_CONTAINS => "RW_SEARCH_MATCH(%s, %s, 'contains', ".($patternMatch->isCaseInsensitive() ? 'true' : 'false') .") <> 1",
+            PatternMatch::PATTERN_CONTAINS => 'contains',
+            PatternMatch::PATTERN_NOT_CONTAINS => 'contains',
 
-            PatternMatch::PATTERN_ENDS_WITH => "RW_SEARCH_MATCH(%s, %s, 'ends_with', ".($patternMatch->isCaseInsensitive() ? 'true' : 'false') .") = 1",
-            PatternMatch::PATTERN_NOT_ENDS_WITH => "RW_SEARCH_MATCH(%s, %s, 'ends_with', ".($patternMatch->isCaseInsensitive() ? 'true' : 'false') .") <> 1",
+            PatternMatch::PATTERN_ENDS_WITH => 'ends_with',
+            PatternMatch::PATTERN_NOT_ENDS_WITH => 'ends_with',
 
-            PatternMatch::PATTERN_REGEX => "RW_SEARCH_MATCH(%s, %s, 'regex', ".($patternMatch->isCaseInsensitive() ? 'true' : 'false') .") = 1",
-            PatternMatch::PATTERN_NOT_REGEX => "RW_SEARCH_MATCH(%s, %s, 'regex', ".($patternMatch->isCaseInsensitive() ? 'true' : 'false') .") <> 1",
+            PatternMatch::PATTERN_REGEX => 'regex',
+            PatternMatch::PATTERN_NOT_REGEX => 'regex',
         );
 
-        return sprintf($pattern[$patternMatch->getType()], $column, $value);
+        return sprintf(
+            "RW_SEARCH_MATCH(%s, %s, '%s', %s) %s 1",
+            $column,
+            $value,
+            $patternType[$patternMatch->getType()],
+            $patternMatch->isCaseInsensitive() ? 'true' : 'false',
+            $patternMatch->isExclusive() ? '<>' : '='
+        );
     }
 
     /**
